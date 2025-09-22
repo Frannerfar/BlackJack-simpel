@@ -5,17 +5,27 @@ namespace BlackjackGame
     class Program
     {
         static Random random = new Random();
+        static int playerBalance = 100; // Start penge
 
         static void Main(string[] args)
         {
             bool playAgain = true;
 
-            while (playAgain)
+            while (playAgain && playerBalance > 0)
             {
                 Console.Clear();
                 Console.WriteLine("Velkommen til Blackjack!\n");
+                Console.WriteLine($"Din nuværende saldo: {playerBalance} chips");
 
-                StartGame();
+                int bet = GetBet();
+
+                StartGame(bet);
+
+                if (playerBalance <= 0)
+                {
+                    Console.WriteLine("\nDu har ingen penge tilbage! Spillet er slut.");
+                    break;
+                }
 
                 Console.WriteLine("\nVil du spille igen? (j/n)");
                 string again = Console.ReadLine().ToLower();
@@ -25,7 +35,30 @@ namespace BlackjackGame
             Console.WriteLine("Tak for spillet!");
         }
 
-        static void StartGame()
+        static int GetBet()
+        {
+            int bet = 0;
+            bool validBet = false;
+
+            while (!validBet)
+            {
+                Console.Write("Hvor meget vil du satse? ");
+                string input = Console.ReadLine();
+
+                if (int.TryParse(input, out bet) && bet > 0 && bet <= playerBalance)
+                {
+                    validBet = true;
+                }
+                else
+                {
+                    Console.WriteLine("Ugyldigt bet. Indtast et tal mellem 1 og din saldo.");
+                }
+            }
+
+            return bet;
+        }
+
+        static void StartGame(int bet)
         {
             string[] playerHand = new string[0];
             string[] dealerHand = new string[0];
@@ -37,6 +70,16 @@ namespace BlackjackGame
             dealerHand = AddCard(dealerHand, DrawCard());
             dealerHand = AddCard(dealerHand, DrawCard());
 
+            // Tjek for Blackjack
+            bool playerBlackjack = (HandValue(playerHand) == 21 && playerHand.Length == 2);
+            bool dealerBlackjack = (HandValue(dealerHand) == 21 && dealerHand.Length == 2);
+
+            if (playerBlackjack || dealerBlackjack)
+            {
+                DetermineBlackjackWinner(playerHand, dealerHand, bet, playerBlackjack, dealerBlackjack);
+                return; // runden slutter her
+            }
+
             bool playerBust = PlayerTurn(ref playerHand, dealerHand);
 
             if (!playerBust)
@@ -44,7 +87,7 @@ namespace BlackjackGame
                 DealerTurn(ref dealerHand);
             }
 
-            DetermineWinner(playerHand, dealerHand, playerBust);
+            DetermineWinner(playerHand, dealerHand, playerBust, bet);
         }
 
         static bool PlayerTurn(ref string[] playerHand, string[] dealerHand)
@@ -92,7 +135,32 @@ namespace BlackjackGame
             }
         }
 
-        static void DetermineWinner(string[] playerHand, string[] dealerHand, bool playerBust)
+        static void DetermineBlackjackWinner(string[] playerHand, string[] dealerHand, int bet, bool playerBlackjack, bool dealerBlackjack)
+        {
+            Console.WriteLine("\n--- Blackjack! ---");
+            Console.WriteLine($"Dine kort: {string.Join(", ", playerHand)} (Total: {HandValue(playerHand)})");
+            Console.WriteLine($"Dealerens kort: {string.Join(", ", dealerHand)} (Total: {HandValue(dealerHand)})");
+
+            if (playerBlackjack && dealerBlackjack)
+            {
+                Console.WriteLine("Begge har Blackjack! Uafgjort – du får dit bet tilbage.");
+            }
+            else if (playerBlackjack)
+            {
+                int winAmount = (int)(bet * 1.5);
+                Console.WriteLine($"Blackjack! Du vinder {winAmount} chips!");
+                playerBalance += winAmount;
+            }
+            else
+            {
+                Console.WriteLine($"Dealer har Blackjack! Du tabte {bet} chips.");
+                playerBalance -= bet;
+            }
+
+            Console.WriteLine($"Din nye saldo: {playerBalance} chips");
+        }
+
+        static void DetermineWinner(string[] playerHand, string[] dealerHand, bool playerBust, int bet)
         {
             int playerTotal = HandValue(playerHand);
             int dealerTotal = HandValue(dealerHand);
@@ -103,24 +171,30 @@ namespace BlackjackGame
 
             if (playerBust)
             {
-                Console.WriteLine("Du tabte! (Bust)");
+                Console.WriteLine($"Du tabte {bet} chips! (Bust)");
+                playerBalance -= bet;
             }
             else if (dealerTotal > 21)
             {
-                Console.WriteLine("Dealer går bust! Du vinder!");
+                Console.WriteLine($"Dealer går bust! Du vinder {bet} chips!");
+                playerBalance += bet;
             }
             else if (playerTotal > dealerTotal)
             {
-                Console.WriteLine("Du vinder!");
+                Console.WriteLine($"Du vinder {bet} chips!");
+                playerBalance += bet;
             }
             else if (playerTotal < dealerTotal)
             {
-                Console.WriteLine("Dealer vinder!");
+                Console.WriteLine($"Dealer vinder! Du tabte {bet} chips.");
+                playerBalance -= bet;
             }
             else
             {
-                Console.WriteLine("Uafgjort!");
+                Console.WriteLine("Uafgjort! Du får dit bet tilbage.");
             }
+
+            Console.WriteLine($"Din nye saldo: {playerBalance} chips");
         }
 
         // ---------------- HJÆLPEFUNKTIONER ----------------
@@ -153,7 +227,6 @@ namespace BlackjackGame
                 if (card == "A") aceCount++;
             }
 
-            // Juster for esser (A = 1 i stedet for 11 hvis bust)
             while (total > 21 && aceCount > 0)
             {
                 total -= 10;
